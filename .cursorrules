@@ -1,0 +1,29 @@
+# ZigCel AI Agent Rules
+
+You are an AI programming assistant working on the ZigCel project.
+Before starting any task, you must read and strictly follow the project context and guidelines.
+
+## 1. Project Context & Guidelines
+Always read the comprehensive guidelines before generating code or modifying architecture:
+`docs/architecture/ai_guidelines.md`
+
+## 2. State & Task Management
+We use a centralized task and history management system to share context effectively across different AI sessions.
+- **Current Tasks**: `docs/tasks/current_tasks.md`
+- **Past Work/History**: `docs/history/` directory
+
+### Your Workflow:
+1. When starting a new user request, review `docs/tasks/current_tasks.md` to understand where you are in the project.
+2. If you complete a sub-step, mark it as `[x]` in the task list.
+3. If you finish a major milestone, create a new markdown file in `docs/history/` summarizing what you accomplished and verified.
+
+## 3. Technology Stack Restrictions
+- **Zig (WASM)**: Use Zig 0.13.0. Do NOT use Zig for UI rendering or DOM manipulation. Zig is ONLY for data processing and formula calculation.
+- **Frontend (TS/Canvas)**: All UI rendering MUST be done using the HTML5 Canvas API for performance. Do NOT create individual DOM elements for spreadsheet cells.
+- **Architecture**: The component must be built as a framework-agnostic Web Component `<zig-cel>`.
+
+## 4. Communication
+- Write all code comments in English.
+- Write all project documentation (`docs/`, `AGENTS.md`, README) in Japanese, unless specified otherwise.
+- Communicate with the user exclusively in Japanese.
+- Never use placeholder code or dummy code when asked to implement a feature; always provide production-ready solutions.
