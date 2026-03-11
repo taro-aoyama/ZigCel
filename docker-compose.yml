@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+    # We use a trick to keep the container running and start vite when npm run dev is ready
+    command: sh -c "npm install && npm run dev -- --host"
