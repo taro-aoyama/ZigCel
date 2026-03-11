@@ -1,27 +1,30 @@
 # AGENTS.md
 
-This file provides context and instructions for AI coding agents interacting with the ZigCel repository.
-We follow the [AGENTS.md standard](https://agents.md/).
+このファイルは、ZigCelリポジトリに参加するAIコーディングエージェントのためのコンテキストと指示を提供する世界標準規格です。
+AIエージェントは[AGENTS.md standard](https://agents.md/)に則り、このファイルの指示に絶対に従う必要があります。
 
-## 1. Project Identity
-- **Name**: ZigCel
-- **Description**: A framework-agnostic, blazingly fast spreadsheet engine component built with Zig (compiled to WASM) and HTML5 Canvas API.
+## 1. プロジェクトのアイデンティティ
+- **プロジェクト名**: ZigCel
+- **概要**: どのWebフレームワークにも依存しない、超高速なスプレッドシートエンジンコンポーネント。Zig言語（WASMへコンパイル）とHTML5 Canvas APIを用いて構築されます。
 
-## 2. Core Architecture
-- **Zig (WASM)** manages data state, formula evaluation, and the dependency graph. `src/main.zig`
-- **TypeScript (Canvas)** handles pure rendering of cells. `src/main.ts`
-- **Web Components** provides the `<zig-cel>` tag interface.
-- DO NOT use the DOM element (`<div>`, `<table>`) for thousands of cells; ALWAYS render via Canvas.
+## 2. コアアーキテクチャ
+- **Zig (WASM)**: データ状態、数式の評価、セル間の依存関係グラフを管理します（`src/main.zig`）。
+- **TypeScript (Canvas)**: セルの純粋な描画処理のみを担当します（`src/main.ts`）。
+- **Web Components**: 外部から利用するための `<zig-cel>` カスタムタグインターフェースを提供します。
+- **制約**: 数千のセルを描画するために DOM 要素 ( `<div>` や `<table>` など) を絶対に使用しないでください。描画は必ず Canvas 経由で行います。
 
-## 3. How to work in this Repository
-All AI agents must respect the centralized context management:
+## 3. このリポジトリでの作業方法
+すべてのAIエージェントは、以下の集中的なコンテキスト管理ルールを尊重しなければなりません：
 
-1. **Read Guidelines**: Read `docs/architecture/ai_guidelines.md` to understand coding rules and architectural constraints.
-2. **Read Current Tasks**: Read `docs/tasks/current_tasks.md` to know what to do next. Check off items `[x]` when completed.
-3. **Commit History**: When concluding a significant step, document the history in a markdown file under `docs/history/`. 
-4. **Develop Locally**: Use `docker compose up -d` to run the environment. Rebuild WASM using `docker compose exec app zig build`.
+1. **ガイドラインの熟読**: コードの追加や変更を行う前に、必ず `docs/architecture/ai_guidelines.md` を読み、コーディングルールとアーキテクチャの制約を理解してください。
+2. **現在のタスクの確認**: 次に何をすべきかを知るために `docs/tasks/current_tasks.md` を読んでください。タスクが完了したら、該当項目に `[x]` を入れてください。
+3. **作業履歴の記録**: 重要なステップ（マイルストーン）が完了した際は、その段階での構築内容と検証結果を `docs/history/` 以下のMarkdownファイルに記録してください。
+4. **ローカル開発環境**: 開発環境の起動には `docker compose up -d` を使用します。Zigコードを変更した場合は `docker compose exec app zig build` でWASMを再ビルドしてください。
 
-## 4. Communication
-- The prompt inputs might be in Japanese, and the AI MUST reply in Japanese to the user.
-- Documentation under `docs/` should be written in Japanese.
-- Code comments and commit messages must be in English.
+## 4. コミュニケーション・ルールの徹底
+> [!IMPORTANT]  
+> このプロジェクトにおいて、人間（ユーザー）とAIエージェント間のコミュニケーション、およびプロジェクト内で作成・管理される**すべてのドキュメントやコメント言語は「日本語」を基本とします。**
+
+- AIエージェントは、ユーザーに対して**必ず日本語で**返答してください。
+- `docs/` 配下の仕様書や履歴、README等のドキュメントはすべて日本語で記述してください。
+- ソースコード内のコメントやコミットメッセージについても、原則として**すべて日本語**で記述してください。
