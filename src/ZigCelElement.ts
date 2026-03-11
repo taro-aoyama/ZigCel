@@ -38,6 +38,7 @@ export class ZigCelElement extends HTMLElement {
     connectedCallback() {
         // Called when the element is inserted into a document
         this.resizeObserver.observe(this);
+        // Initial render triggers after first resize observer callback
     }
 
     disconnectedCallback() {
@@ -62,33 +63,49 @@ export class ZigCelElement extends HTMLElement {
         // Normalize coordinate system to use CSS pixels
         this.ctx.scale(dpr, dpr);
 
-        this.renderDummy();
+        this.render();
     }
 
-    private renderDummy() {
+    private renderGrid(width: number, height: number) {
         // Clear previous drawing
+        this.ctx.clearRect(0, 0, width, height);
+
+        // Fill background
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillRect(0, 0, width, height);
+
+        // Grid settings
+        const cellWidth = 100;
+        const cellHeight = 24;
+        const gridColor = '#e2e8f0'; // Light gray
+
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = gridColor;
+        this.ctx.lineWidth = 1;
+
+        // Draw vertical lines
+        for (let x = 0; x <= width; x += cellWidth) {
+            // align to pixel exactly to avoid blur
+            const pixelX = Math.floor(x) + 0.5;
+            this.ctx.moveTo(pixelX, 0);
+            this.ctx.lineTo(pixelX, height);
+        }
+
+        // Draw horizontal lines
+        for (let y = 0; y <= height; y += cellHeight) {
+            const pixelY = Math.floor(y) + 0.5;
+            this.ctx.moveTo(0, pixelY);
+            this.ctx.lineTo(width, pixelY);
+        }
+
+        this.ctx.stroke();
+    }
+
+    private render() {
         const cssWidth = this.canvas.width / (window.devicePixelRatio || 1);
         const cssHeight = this.canvas.height / (window.devicePixelRatio || 1);
-        this.ctx.clearRect(0, 0, cssWidth, cssHeight);
-
-        // Draw a placeholder background
-        this.ctx.fillStyle = '#f3f4f6';
-        this.ctx.fillRect(0, 0, cssWidth, cssHeight);
-
-        // Draw a box in the center
-        const boxW = 200;
-        const boxH = 100;
-        const boxX = (cssWidth - boxW) / 2;
-        const boxY = (cssHeight - boxH) / 2;
-
-        this.ctx.fillStyle = '#646cff';
-        this.ctx.fillRect(boxX, boxY, boxW, boxH);
         
-        this.ctx.fillStyle = 'white';
-        this.ctx.font = '24px sans-serif';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(`ZigCel API (${Math.round(cssWidth)}x${Math.round(cssHeight)})`, boxX + boxW / 2, boxY + boxH / 2);
+        this.renderGrid(cssWidth, cssHeight);
     }
 }
 
