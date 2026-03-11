@@ -9,6 +9,10 @@ export class ZigCelElement extends HTMLElement {
     private scrollY: number = 0;
     private scrollTicking: boolean = false;
 
+    // Selection State
+    private selectedCol: number | null = null;
+    private selectedRow: number | null = null;
+
     constructor() {
         super();
         
@@ -41,6 +45,9 @@ export class ZigCelElement extends HTMLElement {
 
         // Setup Wheel event listener for scrolling
         this.canvas.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
+
+        // Setup Mouse click listener for cell selection
+        this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
     }
 
     connectedCallback() {
@@ -76,6 +83,34 @@ export class ZigCelElement extends HTMLElement {
         }
     }
 
+    private handleMouseDown(e: MouseEvent) {
+        const rect = this.canvas.getBoundingClientRect();
+        
+        // Calculate logical CSS coordinates relative to the canvas
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        // Constants (should match rendering logic)
+        const headerWidth = 50;
+        const headerHeight = 24;
+        const cellWidth = 100;
+        const cellHeight = 24;
+
+        // Ignore clicks on headers for now
+        if (x < headerWidth || y < headerHeight) {
+            return;
+        }
+
+        // Calculate clicked cell indices considering current scroll offset
+        const col = Math.floor((x - headerWidth + this.scrollX) / cellWidth);
+        const row = Math.floor((y - headerHeight + this.scrollY) / cellHeight);
+
+        this.selectedCol = col;
+        this.selectedRow = row;
+
+        this.render(); // Re-render to show selection
+    }
+
     private handleResize(width: number, height: number) {
         if (width === 0 || height === 0) return;
 
@@ -94,6 +129,41 @@ export class ZigCelElement extends HTMLElement {
         this.ctx.scale(dpr, dpr);
 
         this.render();
+    }
+
+    private renderSelection(width: number, height: number) {
+        if (this.selectedCol === null || this.selectedRow === null) return;
+
+        const headerWidth = 50;
+        const headerHeight = 24;
+        const cellWidth = 100;
+        const cellHeight = 24;
+
+        // Calculate absolute pixel position of the selected cell on canvas
+        const x = Math.floor(this.selectedCol * cellWidth - this.scrollX + headerWidth);
+        const y = Math.floor(this.selectedRow * cellHeight - this.scrollY + headerHeight);
+
+        // Don't draw if the cell has completely scrolled out of the visible viewing area (left or above headers)
+        if (x + cellWidth <= headerWidth || y + cellHeight <= headerHeight) return;
+
+        this.ctx.save();
+        this.ctx.beginPath();
+        
+        // Clip area strictly to the main grid space (avoid drawing over headers)
+        this.ctx.rect(headerWidth, headerHeight, width - headerWidth, height - headerHeight);
+        this.ctx.clip();
+
+        // Draw selection border (Google Sheets Blue)
+        this.ctx.strokeStyle = '#1a73e8';
+        this.ctx.lineWidth = 2;
+        // Stroke rectangle (draw slightly inside the cell so border is fully visible)
+        this.ctx.strokeRect(x + 1, y + 1, cellWidth - 1, cellHeight - 1);
+        
+        // Fill semi-transparent blue background
+        this.ctx.fillStyle = 'rgba(26, 115, 232, 0.1)';
+        this.ctx.fillRect(x + 1, y + 1, cellWidth - 1, cellHeight - 1);
+
+        this.ctx.restore();
     }
 
     private renderGrid(width: number, height: number) {
@@ -265,6 +335,7 @@ export class ZigCelElement extends HTMLElement {
         const cssHeight = this.canvas.height / (window.devicePixelRatio || 1);
         
         this.renderGrid(cssWidth, cssHeight);
+        this.renderSelection(cssWidth, cssHeight);
         this.renderHeaders(cssWidth, cssHeight);
     }
 }
