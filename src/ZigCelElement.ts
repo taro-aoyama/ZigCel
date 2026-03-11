@@ -7,6 +7,7 @@ export class ZigCelElement extends HTMLElement {
     // Scroll Offsets
     private scrollX: number = 0;
     private scrollY: number = 0;
+    private scrollTicking: boolean = false;
 
     constructor() {
         super();
@@ -54,18 +55,25 @@ export class ZigCelElement extends HTMLElement {
     }
 
     private handleWheel(e: WheelEvent) {
-        e.preventDefault(); // Prevent page scrolling
+        // Prevent default browser scrolling when inside the spreadsheet
+        e.preventDefault(); 
 
-        // Update offsets
-        this.scrollX += e.deltaX;
-        this.scrollY += e.deltaY;
+        // Update offsets (round to integer to prevent subpixel rendering artifacts)
+        this.scrollX += Math.round(e.deltaX);
+        this.scrollY += Math.round(e.deltaY);
 
         // Prevent negative scrolling (scrolling past top/left)
         if (this.scrollX < 0) this.scrollX = 0;
         if (this.scrollY < 0) this.scrollY = 0;
 
-        // Re-render with new offsets
-        this.render();
+        // Use requestAnimationFrame to throttle re-rendering
+        if (!this.scrollTicking) {
+            window.requestAnimationFrame(() => {
+                this.render();
+                this.scrollTicking = false;
+            });
+            this.scrollTicking = true;
+        }
     }
 
     private handleResize(width: number, height: number) {
@@ -75,8 +83,8 @@ export class ZigCelElement extends HTMLElement {
         const dpr = window.devicePixelRatio || 1;
         
         // The actual size of the canvas in memory (scaled by DPR)
-        this.canvas.width = width * dpr;
-        this.canvas.height = height * dpr;
+        this.canvas.width = Math.floor(width * dpr);
+        this.canvas.height = Math.floor(height * dpr);
         
         // CSS display size
         this.canvas.style.width = `${width}px`;
@@ -172,62 +180,75 @@ export class ZigCelElement extends HTMLElement {
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
 
-        // Calculate start indices based on scroll offset
-        const startCol = Math.floor(this.scrollX / cellWidth);
-        const startRow = Math.floor(this.scrollY / cellHeight);
+        // -------------------------
+        // Draw Column Headers (Top)
+        // -------------------------
+        this.ctx.save();
+        this.ctx.beginPath();
+        // Clip area strictly to the top header space
+        this.ctx.rect(headerWidth, 0, width - headerWidth, headerHeight);
+        this.ctx.clip();
         
-        const offsetX = -(this.scrollX % cellWidth) + headerWidth;
-        const offsetY = -(this.scrollY % cellHeight) + headerHeight;
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = gridColor;
+        this.ctx.lineWidth = 1;
 
-        // Draw Column Headers (A, B, C...)
-        let colIndex = startCol;
+        let colIndex = Math.floor(this.scrollX / cellWidth);
+        const offsetX = -(this.scrollX % cellWidth) + headerWidth;
+
         for (let x = offsetX; x <= width; x += cellWidth) {
-            if (x < headerWidth) {
-                colIndex++;
-                continue;
-            }
             // Draw separator line
             const pixelX = Math.floor(x) + 0.5;
             this.ctx.moveTo(pixelX, 0);
             this.ctx.lineTo(pixelX, headerHeight);
 
             // Draw text
-            const label = this.getColumnLabel(colIndex);
-            
-            // Clip text to header area if partially scrolled
-            this.ctx.save();
-            this.ctx.beginPath();
-            this.ctx.rect(Math.max(x, headerWidth), 0, cellWidth, headerHeight);
-            this.ctx.clip();
-            this.ctx.fillText(label, x + cellWidth / 2, headerHeight / 2);
-            this.ctx.restore();
-
+            if (x >= headerWidth - cellWidth) {
+                const label = this.getColumnLabel(colIndex);
+                this.ctx.fillText(label, x + cellWidth / 2, headerHeight / 2);
+            }
             colIndex++;
         }
+        this.ctx.stroke();
+        this.ctx.restore();
 
-        // Draw Row Headers (1, 2, 3...)
-        let rowIndex = startRow + 1;
+        // -------------------------
+        // Draw Row Headers (Left)
+        // -------------------------
+        this.ctx.save();
+        this.ctx.beginPath();
+        // Clip area strictly to the left header space
+        this.ctx.rect(0, headerHeight, headerWidth, height - headerHeight);
+        this.ctx.clip();
+
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = gridColor;
+        this.ctx.lineWidth = 1;
+
+        let rowIndex = Math.floor(this.scrollY / cellHeight) + 1;
+        const offsetY = -(this.scrollY % cellHeight) + headerHeight;
+
         for (let y = offsetY; y <= height; y += cellHeight) {
-            if (y < headerHeight) {
-                rowIndex++;
-                continue;
-            }
             // Draw separator line
             const pixelY = Math.floor(y) + 0.5;
             this.ctx.moveTo(0, pixelY);
             this.ctx.lineTo(headerWidth, pixelY);
 
             // Draw text
-            this.ctx.save();
-            this.ctx.beginPath();
-            this.ctx.rect(0, Math.max(y, headerHeight), headerWidth, cellHeight);
-            this.ctx.clip();
-            this.ctx.fillText(rowIndex.toString(), headerWidth / 2, y + cellHeight / 2);
-            this.ctx.restore();
-
+            if (y >= headerHeight - cellHeight) {
+                this.ctx.fillText(rowIndex.toString(), headerWidth / 2, y + cellHeight / 2);
+            }
             rowIndex++;
         }
+        this.ctx.stroke();
+        this.ctx.restore();
 
+        // -------------------------
+        // Draw Borders
+        // -------------------------
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = gridColor;
+        this.ctx.lineWidth = 1;
         // Draw bottom border for top header
         this.ctx.moveTo(0, Math.floor(headerHeight) + 0.5);
         this.ctx.lineTo(width, Math.floor(headerHeight) + 0.5);

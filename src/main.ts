@@ -3,15 +3,15 @@ import './style.css'
 import './ZigCelElement';
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <div style="width: 100vw; height: 100vh; display: flex; flex-direction: column;">
+  <div style="width: 100%; height: 100%; display: flex; flex-direction: column;">
     <header style="padding: 10px; background: #333; color: white;">
-        <h1>ZigCel Prototype</h1>
+        <h1 style="margin: 0; font-size: 1.5rem; display: inline-block; margin-right: 20px;">ZigCel Prototype</h1>
         <button id="calc-btn" type="button">WASM Calc Test (5 + 7)</button>
         <span id="result" style="margin-left: 10px;"></span>
     </header>
     
     <!-- Here is the Web Component Mount Point -->
-    <main style="flex: 1; position: relative;">
+    <main style="flex: 1; min-height: 0; position: relative;">
         <zig-cel></zig-cel>
     </main>
   </div>
