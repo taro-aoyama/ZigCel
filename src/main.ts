@@ -1,14 +1,19 @@
 import './style.css'
+// Initialize web component
+import './ZigCelElement';
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <div>
-    <h1>ZigCel - WASM Spreadsheet Prototype</h1>
-    <div class="card">
-      <button id="calc-btn" type="button">Run Zig Calculation (5 + 7)</button>
-    </div>
-    <p id="result" class="read-the-docs">
-      Result will appear here.
-    </p>
+  <div style="width: 100vw; height: 100vh; display: flex; flex-direction: column;">
+    <header style="padding: 10px; background: #333; color: white;">
+        <h1>ZigCel Prototype</h1>
+        <button id="calc-btn" type="button">WASM Calc Test (5 + 7)</button>
+        <span id="result" style="margin-left: 10px;"></span>
+    </header>
+    
+    <!-- Here is the Web Component Mount Point -->
+    <main style="flex: 1; position: relative;">
+        <zig-cel></zig-cel>
+    </main>
   </div>
 `
 
