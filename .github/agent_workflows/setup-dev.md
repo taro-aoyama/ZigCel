@@ -24,3 +24,9 @@ docker compose logs -f app
 docker compose exec app zig build
 ```
 ※Zigのビルド結果は `zig-out/bin/zigcel.wasm` に出力され、Vite(JS)からフェッチされます。
+
+4. テストの実行（コード変更ごとに必ず実施）
+// turbo
+```bash
+docker compose exec app zig build test
+```

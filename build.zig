@@ -32,4 +32,21 @@ pub fn build(b: *std.Build) void {
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).
     b.installArtifact(exe);
+
+    // Creates a step for unit testing.
+    // For tests, we use the *native* target instead of wasm32-freestanding,
+    // so that the standard library can use OS features like stdout to print test results.
+    const native_target = b.resolveTargetQuery(.{});
+    const main_tests = b.addTest(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = native_target, // Changed from target (wasm32) to native_target
+        .optimize = optimize,
+    });
+
+    const run_main_tests = b.addRunArtifact(main_tests);
+
+    // This creates a build step. It will be visible in the `zig build --help` menu,
+    // and can be selected like this: `zig build test`
+    const test_step = b.step("test", "Run library tests");
+    test_step.dependOn(&run_main_tests.step);
 }
