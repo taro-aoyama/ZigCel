@@ -4,6 +4,10 @@ export class ZigCelElement extends HTMLElement {
     private ctx: CanvasRenderingContext2D;
     private resizeObserver: ResizeObserver;
 
+    // Scroll Offsets
+    private scrollX: number = 0;
+    private scrollY: number = 0;
+
     constructor() {
         super();
         
@@ -33,6 +37,9 @@ export class ZigCelElement extends HTMLElement {
                 }
             }
         });
+
+        // Setup Wheel event listener for scrolling
+        this.canvas.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
     }
 
     connectedCallback() {
@@ -44,6 +51,21 @@ export class ZigCelElement extends HTMLElement {
     disconnectedCallback() {
         // Called when the element is removed from a document
         this.resizeObserver.disconnect();
+    }
+
+    private handleWheel(e: WheelEvent) {
+        e.preventDefault(); // Prevent page scrolling
+
+        // Update offsets
+        this.scrollX += e.deltaX;
+        this.scrollY += e.deltaY;
+
+        // Prevent negative scrolling (scrolling past top/left)
+        if (this.scrollX < 0) this.scrollX = 0;
+        if (this.scrollY < 0) this.scrollY = 0;
+
+        // Re-render with new offsets
+        this.render();
     }
 
     private handleResize(width: number, height: number) {
@@ -77,24 +99,31 @@ export class ZigCelElement extends HTMLElement {
         // Grid settings
         const cellWidth = 100;
         const cellHeight = 24;
+        const headerWidth = 50;
+        const headerHeight = 24;
         const gridColor = '#e2e8f0'; // Light gray
 
         this.ctx.beginPath();
         this.ctx.strokeStyle = gridColor;
         this.ctx.lineWidth = 1;
 
+        // Offset to start drawing
+        const offsetX = -(this.scrollX % cellWidth) + headerWidth;
+        const offsetY = -(this.scrollY % cellHeight) + headerHeight;
+
         // Draw vertical lines
-        for (let x = 0; x <= width; x += cellWidth) {
-            // align to pixel exactly to avoid blur
+        for (let x = offsetX; x <= width; x += cellWidth) {
+            if (x < headerWidth) continue; // Don't draw over row headers
             const pixelX = Math.floor(x) + 0.5;
-            this.ctx.moveTo(pixelX, 0);
+            this.ctx.moveTo(pixelX, headerHeight);
             this.ctx.lineTo(pixelX, height);
         }
 
         // Draw horizontal lines
-        for (let y = 0; y <= height; y += cellHeight) {
+        for (let y = offsetY; y <= height; y += cellHeight) {
+            if (y < headerHeight) continue; // Don't draw over col headers
             const pixelY = Math.floor(y) + 0.5;
-            this.ctx.moveTo(0, pixelY);
+            this.ctx.moveTo(headerWidth, pixelY);
             this.ctx.lineTo(width, pixelY);
         }
 
@@ -120,6 +149,10 @@ export class ZigCelElement extends HTMLElement {
         const headerTextColor = '#64748b';
         const gridColor = '#cbd5e1';
 
+        // Clear header areas before drawing to prevent text overlapping during scroll
+        this.ctx.clearRect(0, 0, width, headerHeight); // Top header
+        this.ctx.clearRect(0, 0, headerWidth, height); // Left header
+
         // Draw header backgrounds
         this.ctx.fillStyle = headerBgColor;
         this.ctx.fillRect(0, 0, width, headerHeight); // Top header (letters)
@@ -139,9 +172,20 @@ export class ZigCelElement extends HTMLElement {
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
 
+        // Calculate start indices based on scroll offset
+        const startCol = Math.floor(this.scrollX / cellWidth);
+        const startRow = Math.floor(this.scrollY / cellHeight);
+        
+        const offsetX = -(this.scrollX % cellWidth) + headerWidth;
+        const offsetY = -(this.scrollY % cellHeight) + headerHeight;
+
         // Draw Column Headers (A, B, C...)
-        let colIndex = 0;
-        for (let x = headerWidth; x < width; x += cellWidth) {
+        let colIndex = startCol;
+        for (let x = offsetX; x <= width; x += cellWidth) {
+            if (x < headerWidth) {
+                colIndex++;
+                continue;
+            }
             // Draw separator line
             const pixelX = Math.floor(x) + 0.5;
             this.ctx.moveTo(pixelX, 0);
@@ -149,20 +193,38 @@ export class ZigCelElement extends HTMLElement {
 
             // Draw text
             const label = this.getColumnLabel(colIndex);
+            
+            // Clip text to header area if partially scrolled
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.rect(Math.max(x, headerWidth), 0, cellWidth, headerHeight);
+            this.ctx.clip();
             this.ctx.fillText(label, x + cellWidth / 2, headerHeight / 2);
+            this.ctx.restore();
+
             colIndex++;
         }
 
         // Draw Row Headers (1, 2, 3...)
-        let rowIndex = 1;
-        for (let y = headerHeight; y < height; y += cellHeight) {
+        let rowIndex = startRow + 1;
+        for (let y = offsetY; y <= height; y += cellHeight) {
+            if (y < headerHeight) {
+                rowIndex++;
+                continue;
+            }
             // Draw separator line
             const pixelY = Math.floor(y) + 0.5;
             this.ctx.moveTo(0, pixelY);
             this.ctx.lineTo(headerWidth, pixelY);
 
             // Draw text
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.rect(0, Math.max(y, headerHeight), headerWidth, cellHeight);
+            this.ctx.clip();
             this.ctx.fillText(rowIndex.toString(), headerWidth / 2, y + cellHeight / 2);
+            this.ctx.restore();
+
             rowIndex++;
         }
 
