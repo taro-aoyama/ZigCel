@@ -1,3 +1,13 @@
+// WebAssembly Engine binding interface
+export interface WasmEngine {
+    memory: WebAssembly.Memory;
+    initEngine: () => void;
+    getMemoryBuffer: () => number;
+    setCellValue: (col: number, row: number, len: number) => void;
+    getCellValuePtr: (col: number, row: number) => number;
+    getCellValueLen: (col: number, row: number) => number;
+}
+
 // Web Component <zig-cel>
 export class ZigCelElement extends HTMLElement {
     private canvas: HTMLCanvasElement;
@@ -19,8 +29,8 @@ export class ZigCelElement extends HTMLElement {
     // Elements
     private inputField: HTMLInputElement;
 
-    // Data Store (Temporary until full WASM integration)
-    private cellData: Map<string, string> = new Map();
+    // WebAssembly Engine Reference
+    private wasmEngine: WasmEngine | null = null;
 
     constructor() {
         super();
@@ -91,6 +101,12 @@ export class ZigCelElement extends HTMLElement {
 
         // Setup Double click listener for editing
         this.canvas.addEventListener('dblclick', this.handleDoubleClick.bind(this));
+    }
+
+    public setWasmEngine(engine: WasmEngine) {
+        this.wasmEngine = engine;
+        this.wasmEngine.initEngine();
+        this.render();
     }
 
     connectedCallback() {
@@ -182,8 +198,18 @@ export class ZigCelElement extends HTMLElement {
         this.inputField.style.height = `${cellHeight}px`;
         this.inputField.style.display = 'block';
         
-        const cellKey = `${col},${row}`;
-        this.inputField.value = this.cellData.get(cellKey) || '';
+        let existingVal = '';
+        if (this.wasmEngine) {
+            const len = this.wasmEngine.getCellValueLen(col, row);
+            if (len > 0) {
+                const ptr = this.wasmEngine.getCellValuePtr(col, row);
+                const decoder = new TextDecoder();
+                const textArray = new Uint8Array(this.wasmEngine.memory.buffer, ptr, len);
+                existingVal = decoder.decode(textArray);
+            }
+        }
+
+        this.inputField.value = existingVal;
         
         // Timeout to ensure display block has taken effect before focus
         setTimeout(() => {
@@ -196,13 +222,19 @@ export class ZigCelElement extends HTMLElement {
         if (!this.isEditing) return;
         
         const val = this.inputField.value;
-        if (this.editingCol !== null && this.editingRow !== null) {
-            const cellKey = `${this.editingCol},${this.editingRow}`;
-            if (val) {
-                this.cellData.set(cellKey, val);
-            } else {
-                this.cellData.delete(cellKey);
+        if (this.wasmEngine && this.editingCol !== null && this.editingRow !== null) {
+            const encoder = new TextEncoder();
+            const encodedArray = encoder.encode(val);
+            const bufferOffset = this.wasmEngine.getMemoryBuffer();
+            
+            // Write string to WASM shared memory input buffer
+            if (encodedArray.length > 0) {
+                const wasmMemArray = new Uint8Array(this.wasmEngine.memory.buffer, bufferOffset, encodedArray.length);
+                wasmMemArray.set(encodedArray);
             }
+
+            // Instruct Zig to save (and potentially evaluate) the cell data
+            this.wasmEngine.setCellValue(this.editingCol, this.editingRow, encodedArray.length);
         }
         
         this.isEditing = false;
@@ -339,8 +371,15 @@ export class ZigCelElement extends HTMLElement {
 
         for (let r = startRow; r <= endRow; r++) {
             for (let c = startCol; c <= endCol; c++) {
-                const val = this.cellData.get(`${c},${r}`);
-                if (val) {
+                if (!this.wasmEngine) continue;
+
+                const len = this.wasmEngine.getCellValueLen(c, r);
+                if (len > 0) {
+                    const ptr = this.wasmEngine.getCellValuePtr(c, r);
+                    const decoder = new TextDecoder();
+                    const textArray = new Uint8Array(this.wasmEngine.memory.buffer, ptr, len);
+                    const val = decoder.decode(textArray);
+
                     const cellPixelX = Math.floor(c * cellWidth - this.scrollX + headerWidth);
                     const cellPixelY = Math.floor(r * cellHeight - this.scrollY + headerHeight);
                     
