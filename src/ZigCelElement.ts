@@ -9,9 +9,18 @@ export class ZigCelElement extends HTMLElement {
     private scrollY: number = 0;
     private scrollTicking: boolean = false;
 
-    // Selection State
+    // Selection and Editing State
     private selectedCol: number | null = null;
     private selectedRow: number | null = null;
+    private editingCol: number | null = null;
+    private editingRow: number | null = null;
+    private isEditing: boolean = false;
+
+    // Elements
+    private inputField: HTMLInputElement;
+
+    // Data Store (Temporary until full WASM integration)
+    private cellData: Map<string, string> = new Map();
 
     constructor() {
         super();
@@ -19,13 +28,44 @@ export class ZigCelElement extends HTMLElement {
         // Attach Shadow DOM for encapsulation
         this.attachShadow({ mode: 'open' });
 
+        // Host element style (to position the input relative to the custom element)
+        this.style.position = 'relative';
+        this.style.display = 'block';
+        this.style.width = '100%';
+        this.style.height = '100%';
+
         // Build internal DOM
         this.canvas = document.createElement('canvas');
         this.canvas.style.width = '100%';
         this.canvas.style.height = '100%';
         this.canvas.style.display = 'block';
 
+        // Setup input field for editing
+        this.inputField = document.createElement('input');
+        this.inputField.type = 'text';
+        this.inputField.style.position = 'absolute';
+        this.inputField.style.display = 'none';
+        this.inputField.style.boxSizing = 'border-box';
+        this.inputField.style.border = '2px solid #1a73e8';
+        this.inputField.style.outline = 'none';
+        this.inputField.style.padding = '0 4px';
+        this.inputField.style.font = '13px sans-serif';
+        this.inputField.style.margin = '0';
+        this.inputField.style.backgroundColor = '#fff';
+        this.inputField.style.zIndex = '100';
+
+        // Add event listeners for the input
+        this.inputField.addEventListener('blur', this.finishEditing.bind(this));
+        this.inputField.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                this.inputField.blur(); // Triggers blur which calls finishEditing
+            } else if (e.key === 'Escape') {
+                this.cancelEditing();
+            }
+        });
+
         this.shadowRoot?.appendChild(this.canvas);
+        this.shadowRoot?.appendChild(this.inputField);
 
         // Get 2D Context
         const ctx = this.canvas.getContext('2d');
@@ -48,6 +88,9 @@ export class ZigCelElement extends HTMLElement {
 
         // Setup Mouse click listener for cell selection
         this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+
+        // Setup Double click listener for editing
+        this.canvas.addEventListener('dblclick', this.handleDoubleClick.bind(this));
     }
 
     connectedCallback() {
@@ -64,6 +107,10 @@ export class ZigCelElement extends HTMLElement {
     private handleWheel(e: WheelEvent) {
         // Prevent default browser scrolling when inside the spreadsheet
         e.preventDefault(); 
+
+        if (this.isEditing) {
+            this.inputField.blur(); // Save and close input on scroll
+        }
 
         // Update offsets (round to integer to prevent subpixel rendering artifacts)
         this.scrollX += Math.round(e.deltaX);
@@ -109,6 +156,69 @@ export class ZigCelElement extends HTMLElement {
         this.selectedRow = row;
 
         this.render(); // Re-render to show selection
+    }
+
+    private handleDoubleClick() {
+        if (this.selectedCol === null || this.selectedRow === null) return;
+        this.startEditing(this.selectedCol, this.selectedRow);
+    }
+
+    private startEditing(col: number, row: number) {
+        this.isEditing = true;
+        this.editingCol = col;
+        this.editingRow = row;
+
+        const headerWidth = 50;
+        const headerHeight = 24;
+        const cellWidth = 100;
+        const cellHeight = 24;
+
+        const x = col * cellWidth - this.scrollX + headerWidth;
+        const y = row * cellHeight - this.scrollY + headerHeight;
+
+        this.inputField.style.left = `${x}px`;
+        this.inputField.style.top = `${y}px`;
+        this.inputField.style.width = `${cellWidth}px`;
+        this.inputField.style.height = `${cellHeight}px`;
+        this.inputField.style.display = 'block';
+        
+        const cellKey = `${col},${row}`;
+        this.inputField.value = this.cellData.get(cellKey) || '';
+        
+        // Timeout to ensure display block has taken effect before focus
+        setTimeout(() => {
+            this.inputField.focus();
+            this.inputField.select(); // Select all text on edit start
+        }, 0);
+    }
+
+    private finishEditing() {
+        if (!this.isEditing) return;
+        
+        const val = this.inputField.value;
+        if (this.editingCol !== null && this.editingRow !== null) {
+            const cellKey = `${this.editingCol},${this.editingRow}`;
+            if (val) {
+                this.cellData.set(cellKey, val);
+            } else {
+                this.cellData.delete(cellKey);
+            }
+        }
+        
+        this.isEditing = false;
+        this.editingCol = null;
+        this.editingRow = null;
+        this.inputField.style.display = 'none';
+        this.render();
+    }
+
+    private cancelEditing() {
+        if (!this.isEditing) return;
+        this.isEditing = false;
+        this.editingCol = null;
+        this.editingRow = null;
+        this.inputField.style.display = 'none';
+        this.render();
     }
 
     private handleResize(width: number, height: number) {
@@ -206,6 +316,47 @@ export class ZigCelElement extends HTMLElement {
         }
 
         this.ctx.stroke();
+
+        // -------------------------
+        // Render Cell Data (Text)
+        // -------------------------
+        this.ctx.save();
+        this.ctx.beginPath();
+        // Clip area strictly to the main grid space (prevent overflowing to headers)
+        this.ctx.rect(headerWidth, headerHeight, width - headerWidth, height - headerHeight);
+        this.ctx.clip();
+
+        this.ctx.fillStyle = '#000000';
+        this.ctx.font = '13px sans-serif';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+
+        // Calculate visible range
+        const startCol = Math.max(0, Math.floor(this.scrollX / cellWidth));
+        const endCol = Math.floor((this.scrollX + width - headerWidth) / cellWidth) + 1;
+        const startRow = Math.max(0, Math.floor(this.scrollY / cellHeight));
+        const endRow = Math.floor((this.scrollY + height - headerHeight) / cellHeight) + 1;
+
+        for (let r = startRow; r <= endRow; r++) {
+            for (let c = startCol; c <= endCol; c++) {
+                const val = this.cellData.get(`${c},${r}`);
+                if (val) {
+                    const cellPixelX = Math.floor(c * cellWidth - this.scrollX + headerWidth);
+                    const cellPixelY = Math.floor(r * cellHeight - this.scrollY + headerHeight);
+                    
+                    // Basic clipping per cell text (so text doesn't overlap adjacent cells)
+                    this.ctx.save();
+                    this.ctx.beginPath();
+                    this.ctx.rect(cellPixelX + 1, cellPixelY + 1, cellWidth - 2, cellHeight - 2);
+                    this.ctx.clip();
+                    
+                    this.ctx.fillText(val, cellPixelX + 4, cellPixelY + cellHeight / 2);
+                    this.ctx.restore();
+                }
+            }
+        }
+        
+        this.ctx.restore();
     }
 
     private getColumnLabel(index: number): string {
